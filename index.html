@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Significant Reads Doc Converter - Word to EPUB & PDF Converter | Significant Reads</title>
+  <meta name="description" content="Convert Word documents to EPUB or PDF, PDFs to Word or JPG, images to PDF, and split or merge PDFs. Free, from Significant Reads." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <main class="page">
+    <header class="hero">
+      <h1>Significant reads doc converter</h1>
+      <p>
+        Turn a Word document (.doc or .docx) into an EPUB or PDF, a PDF into a Word document or
+        JPG images, a JPG/PNG image into a PDF, split a PDF into separate pages, or merge several
+        PDFs into one.
+      </p>
+    </header>
+
+    <!-- Tabs -->
+    <div class="tabs" role="tablist" aria-label="Tools">
+      <button class="tab is-active" role="tab" id="tab-convert" aria-selected="true" aria-controls="panel-convert" data-tab="convert">Convert</button>
+      <button class="tab" role="tab" id="tab-split" aria-selected="false" aria-controls="panel-split" data-tab="split">Split PDF</button>
+      <button class="tab" role="tab" id="tab-merge" aria-selected="false" aria-controls="panel-merge" data-tab="merge">Merge PDFs</button>
+    </div>
+
+    <!-- CONVERT -->
+    <section class="card" id="panel-convert" role="tabpanel" aria-labelledby="tab-convert">
+      <h2>Convert your document</h2>
+      <p class="card-desc">
+        Choose a file to start. A Word document (.doc or .docx) can become an EPUB or a PDF, a PDF
+        becomes a Word document or a JPG, and an image (.jpg or .png) becomes a PDF.
+      </p>
+
+      <label class="field-label" for="convert-input">Your file</label>
+      <div class="dropzone" id="convert-drop" tabindex="0">
+        <input type="file" id="convert-input" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" hidden />
+        <div class="dropzone-empty">
+          <svg class="icon-upload" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
+          <p class="dropzone-title">Drop your PDF, DOC, DOCX, JPG or PNG here or click to browse</p>
+          <p class="dropzone-hint">Up to 15 MB</p>
+        </div>
+      </div>
+
+      <div class="field" id="convert-format-wrap" hidden>
+        <label class="field-label" for="convert-format">Convert to</label>
+        <select id="convert-format" class="select">
+          <option value="">Choose the result</option>
+        </select>
+      </div>
+
+      <p class="status" id="convert-status" role="status" aria-live="polite" hidden></p>
+
+      <button class="btn-primary" id="convert-btn" disabled>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>
+        Convert document
+      </button>
+
+      <p class="card-footer">
+        Your next great read is waiting. Explore our digital library:
+        <a href="https://significantreads.lovable.app" target="_blank" rel="noopener">Significant Reads</a>
+      </p>
+    </section>
+
+    <!-- SPLIT -->
+    <section class="card" id="panel-split" role="tabpanel" aria-labelledby="tab-split" hidden>
+      <h2>Split a PDF</h2>
+      <p class="card-desc">
+        Upload a PDF and we'll split it into individual pages. When it's done, choose to get them
+        as one ZIP or as separate files.
+      </p>
+
+      <label class="field-label" for="split-input">Your PDF</label>
+      <div class="dropzone" id="split-drop" tabindex="0">
+        <input type="file" id="split-input" accept=".pdf,application/pdf" hidden />
+        <div class="dropzone-empty">
+          <svg class="icon-upload" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
+          <p class="dropzone-title">Drop your PDF here, or click to browse</p>
+          <p class="dropzone-hint">PDF up to 15 MB</p>
+        </div>
+      </div>
+
+      <p class="status" id="split-status" role="status" aria-live="polite" hidden></p>
+
+      <button class="btn-primary" id="split-btn" disabled>Split PDF</button>
+    </section>
+
+    <!-- MERGE -->
+    <section class="card" id="panel-merge" role="tabpanel" aria-labelledby="tab-merge" hidden>
+      <h2>Merge PDFs</h2>
+      <p class="card-desc">
+        Add two or more PDFs, drag them into the order you want, then merge them into one file.
+      </p>
+
+      <div class="dropzone" id="merge-drop" tabindex="0">
+        <input type="file" id="merge-input" accept=".pdf,application/pdf" multiple hidden />
+        <div class="dropzone-empty">
+          <svg class="icon-upload" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
+          <p class="dropzone-title">Drop PDFs here or click to choose</p>
+          <p class="dropzone-hint">PDF files only · 15 MB combined</p>
+        </div>
+      </div>
+
+      <ul class="file-list" id="merge-list" hidden></ul>
+
+      <p class="status" id="merge-status" role="status" aria-live="polite" hidden></p>
+
+      <button class="btn-primary" id="merge-btn" disabled>Merge PDFs</button>
+    </section>
+  </main>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
