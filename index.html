@@ -105,4 +105,48 @@
       <h2>Split a PDF</h2>
       <p class="card-desc">
         Upload a PDF and we'll split it into individual pages. When it's done, choose to get them
-        as one ZIP or as
+        as one ZIP or as separate files.
+      </p>
+
+      <label class="field-label" for="split-input">Your PDF</label>
+      <div class="dropzone" id="split-drop" tabindex="0">
+        <input type="file" id="split-input" accept=".pdf,application/pdf" hidden />
+        <div class="dropzone-empty">
+          <svg class="icon-upload" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
+          <p class="dropzone-title">Drop your PDF here, or click to browse</p>
+          <p class="dropzone-hint">PDF up to 15 MB</p>
+        </div>
+      </div>
+
+      <p class="status" id="split-status" role="status" aria-live="polite" hidden></p>
+
+      <button class="btn-primary" id="split-btn" disabled>Split PDF</button>
+    </section>
+
+    <!-- MERGE -->
+    <section class="card" id="panel-merge" role="tabpanel" aria-labelledby="tab-merge" hidden>
+      <h2>Merge PDFs</h2>
+      <p class="card-desc">
+        Add two or more PDFs, drag them into the order you want, then merge them into one file.
+      </p>
+
+      <div class="dropzone" id="merge-drop" tabindex="0">
+        <input type="file" id="merge-input" accept=".pdf,application/pdf" multiple hidden />
+        <div class="dropzone-empty">
+          <svg class="icon-upload" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
+          <p class="dropzone-title">Drop PDFs here or click to choose</p>
+          <p class="dropzone-hint">PDF files only · 15 MB combined</p>
+        </div>
+      </div>
+
+      <ul class="file-list" id="merge-list" hidden></ul>
+
+      <p class="status" id="merge-status" role="status" aria-live="polite" hidden></p>
+
+      <button class="btn-primary" id="merge-btn" disabled>Merge PDFs</button>
+    </section>
+  </main>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
