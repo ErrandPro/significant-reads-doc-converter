@@ -176,3 +176,35 @@ body {
   .page { padding-top: 40px; }
   .card { padding: 18px; }
 }
+
+/* Selected file view (inside dropzone) */
+.dropzone.has-file { border-color: #4b5563; background: #fff; }
+.dropzone-file {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  text-align: left;
+}
+.dropzone-file-info { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.dropzone-file-info svg { width: 28px; height: 28px; flex-shrink: 0; }
+.dropzone-file-name {
+  margin: 0 0 2px;
+  font-size: 14px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.dropzone-file-size { margin: 0; color: var(--muted); font-size: 12px; }
+.dropzone-remove {
+  flex-shrink: 0;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+.dropzone-remove:hover { background: var(--tab-bg); }
