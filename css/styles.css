@@ -184,6 +184,55 @@ textarea.input { resize: vertical; }
 
 /* Merge file list */
 .file-list { list-style: none; margin: 16px 0 0; padding: 0; display: grid; gap: 8px; }
+.file-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fff;
+  cursor: grab;
+}
+.file-item.is-dragging { opacity: 0.4; }
+.file-item.is-over { border-color: var(--accent); background: #f8faff; }
+.file-item-grip { color: var(--muted); font-size: 14px; letter-spacing: -2px; user-select: none; }
+.file-item-index {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--tab-bg);
+  font-size: 12px;
+  font-weight: 700;
+}
+.file-item-main { flex: 1; min-width: 0; }
+.file-item-name {
+  margin: 0 0 2px;
+  font-size: 14px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.file-item-size { margin: 0; color: var(--muted); font-size: 12px; }
+.file-item-actions { display: flex; gap: 2px; flex-shrink: 0; }
+.icon-btn {
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+.icon-btn:hover:not(:disabled) { background: var(--tab-bg); }
+.icon-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.file-total { margin: 10px 0 0; color: var(--muted); font-size: 13px; }
 
 /* Buttons */
 .btn-primary {
@@ -208,6 +257,26 @@ textarea.input { resize: vertical; }
 .btn-primary:disabled { background: var(--btn-disabled); cursor: not-allowed; }
 .btn-primary:not(:disabled):hover { opacity: 0.9; }
 
+.result {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 16px;
+}
+.btn-secondary {
+  padding: 11px 14px;
+  border: 1px solid var(--text);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-secondary:hover:not(:disabled) { background: var(--tab-bg); }
+.btn-secondary:disabled { opacity: 0.5; cursor: not-allowed; }
+
 /* Footer */
 .card-footer {
   margin: 20px 0 0;
@@ -221,4 +290,5 @@ textarea.input { resize: vertical; }
 @media (max-width: 480px) {
   .page { padding-top: 40px; }
   .card { padding: 18px; }
+  .result { grid-template-columns: 1fr; }
 }
