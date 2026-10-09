@@ -1,6 +1,10 @@
 // ---------- Config ----------
 const MAX_FILE_BYTES = 15 * 1024 * 1024; // 15 MB cap
 
+const API_BASE = "https://significant-reads-epub-api.onrender.com";
+const POLL_INTERVAL_MS = 2000;
+const POLL_TIMEOUT_MS = 5 * 60 * 1000;
+
 const CONVERT_EXTENSIONS = [".pdf", ".doc", ".docx", ".jpg", ".jpeg", ".png"];
 
 const FORMAT_LABELS = {
@@ -42,6 +46,14 @@ function setStatus(el, message, type) {
   el.hidden = false;
   el.textContent = message;
   el.className = "status" + (type ? " is-" + type : "");
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function safeFilename(name) {
+  return name.replace(/[\\/:*?"<>|]+/g, "").trim() || "converted";
 }
 
 // Shared dropzone behaviour: click, keyboard, drag and drop
@@ -111,6 +123,76 @@ tabs.forEach((tab) => {
   tab.addEventListener("click", () => showTab(tab.dataset.tab));
 });
 
+// ---------- Backend connection ----------
+
+// Turns a failed response into a readable message
+async function readError(res) {
+  if (res.status === 429) {
+    return "Too many requests. Please wait a minute and try again.";
+  }
+  try {
+    const data = await res.json();
+    if (typeof data.detail === "string") return data.detail;
+    if (Array.isArray(data.detail)) return data.detail.map((d) => d.msg).join(" ");
+  } catch (_) {}
+  return `Something went wrong (error ${res.status}).`;
+}
+
+// 1) Upload and start a job. Returns the job id.
+async function startJob(endpoint, formData) {
+  let res;
+  try {
+    res = await fetch(API_BASE + endpoint, { method: "POST", body: formData });
+  } catch (_) {
+    throw new Error("Could not reach the server. Check your connection and try again.");
+  }
+  if (!res.ok) throw new Error(await readError(res));
+  const data = await res.json();
+  return data.job_id;
+}
+
+// 2) Poll until the job is done
+async function waitForJob(jobId) {
+  const started = Date.now();
+  while (Date.now() - started < POLL_TIMEOUT_MS) {
+    await sleep(POLL_INTERVAL_MS);
+    let res;
+    try {
+      res = await fetch(`${API_BASE}/status/${jobId}`);
+    } catch (_) {
+      continue; // brief network blip, try again
+    }
+    if (!res.ok) throw new Error(await readError(res));
+    const job = await res.json();
+    const status = String(job.status || "").toLowerCase();
+    if (status === "done") return job;
+    if (status.includes("fail") || status.includes("error")) {
+      throw new Error(job.error || job.detail || job.message || "The conversion failed. Please try another file.");
+    }
+  }
+  throw new Error("This is taking too long. Please try again.");
+}
+
+// 3) Download the result (the backend deletes it after one download)
+async function downloadJob(jobId, filename) {
+  let res;
+  try {
+    res = await fetch(`${API_BASE}/download/${jobId}`);
+  } catch (_) {
+    throw new Error("Could not download the result. Please try again.");
+  }
+  if (!res.ok) throw new Error(await readError(res));
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 // ---------- Convert tab ----------
 const convertDrop = document.getElementById("convert-drop");
 const convertInput = document.getElementById("convert-input");
@@ -120,6 +202,21 @@ const convertFormat = document.getElementById("convert-format");
 const convertStatus = document.getElementById("convert-status");
 const convertBtn = document.getElementById("convert-btn");
 
+const convertEpubFields = document.getElementById("epub-fields");
+const epubTitle = document.getElementById("epub-title");
+const epubAuthor = document.getElementById("epub-author");
+const epubSubtitle = document.getElementById("epub-subtitle");
+const epubCopyright = document.getElementById("epub-copyright");
+const epubDedication = document.getElementById("epub-dedication");
+const epubAcknowledgements = document.getElementById("epub-acknowledgements");
+const epubForeword = document.getElementById("epub-foreword");
+const epubInputs = [
+  epubTitle, epubAuthor, epubSubtitle, epubCopyright,
+  epubDedication, epubAcknowledgements, epubForeword,
+];
+
+const convertBtnHTML = convertBtn.innerHTML;
+
 // View shown inside the dropzone once a file is chosen
 const convertFileView = document.createElement("div");
 convertFileView.className = "dropzone-file";
@@ -127,9 +224,14 @@ convertFileView.hidden = true;
 convertDrop.appendChild(convertFileView);
 
 let convertFile = null;
+let convertBusy = false;
 
 function updateConvertButton() {
-  convertBtn.disabled = !(convertFile && convertFormat.value);
+  const isEpub = convertFormat.value === "epub";
+  convertEpubFields.hidden = !isEpub;
+
+  const epubReady = !isEpub || (epubTitle.value.trim() && epubAuthor.value.trim());
+  convertBtn.disabled = convertBusy || !(convertFile && convertFormat.value && epubReady);
 }
 
 function renderConvertFile() {
@@ -154,7 +256,7 @@ function renderConvertFile() {
   convertFileView.querySelector(".dropzone-file-size").textContent = formatBytes(convertFile.size);
   convertFileView.querySelector(".dropzone-remove").addEventListener("click", (e) => {
     e.stopPropagation();
-    resetConvert();
+    if (!convertBusy) resetConvert();
   });
 
   convertEmpty.hidden = true;
@@ -180,12 +282,15 @@ function resetConvert() {
   convertFile = null;
   convertFormat.innerHTML = '<option value="">Choose the result</option>';
   convertFormatWrap.hidden = true;
+  epubInputs.forEach((el) => (el.value = ""));
   setStatus(convertStatus, "");
   renderConvertFile();
   updateConvertButton();
 }
 
 function handleConvertFiles(files) {
+  if (convertBusy) return;
+
   const file = files[0];
   const ext = getExt(file.name);
 
@@ -210,13 +315,66 @@ function handleConvertFiles(files) {
 }
 
 setupDropzone({ zone: convertDrop, input: convertInput, onFiles: handleConvertFiles });
-convertFormat.addEventListener("change", updateConvertButton);
 
-// Placeholder: real upload is wired in a later step
-convertBtn.addEventListener("click", () => {
-  setStatus(
-    convertStatus,
-    `Ready: ${convertFile.name} to ${FORMAT_LABELS[convertFormat.value]}. Upload is not connected yet.`,
-    "success"
-  );
+// Choosing a result: pre-fill the EPUB title from the file name, then refresh the button
+convertFormat.addEventListener("change", () => {
+  if (convertFormat.value === "epub" && convertFile && !epubTitle.value.trim()) {
+    epubTitle.value = convertFile.name.replace(/\.[^.]+$/, "").replace(/_+/g, " ");
+  }
+  updateConvertButton();
+});
+
+[epubTitle, epubAuthor].forEach((el) => el.addEventListener("input", updateConvertButton));
+
+// Submit: upload, wait for the job, download
+convertBtn.addEventListener("click", async () => {
+  if (convertBusy || !convertFile) return;
+
+  const target = convertFormat.value;
+  const baseName = convertFile.name.replace(/\.[^.]+$/, "");
+
+  const fd = new FormData();
+  fd.append("pdf", convertFile); // the backend field is named "pdf" for every file type
+  fd.append("target", target);
+
+  if (target === "epub") {
+    fd.append("title", epubTitle.value.trim());
+    fd.append("author", epubAuthor.value.trim());
+    fd.append("subtitle", epubSubtitle.value.trim());
+    fd.append("copyright", epubCopyright.value.trim());
+    fd.append("dedication", epubDedication.value.trim());
+    fd.append("acknowledgements", epubAcknowledgements.value.trim());
+    fd.append("foreword", epubForeword.value.trim());
+  }
+
+  convertBusy = true;
+  convertBtn.textContent = "Converting...";
+  updateConvertButton();
+
+  // The free server sleeps when idle, so the first request can be slow
+  const wakeTimer = setTimeout(() => {
+    setStatus(convertStatus, "Waking up the server, this can take up to a minute...", "");
+  }, 8000);
+
+  try {
+    setStatus(convertStatus, "Uploading your file...", "");
+    const jobId = await startJob("/convert", fd);
+    clearTimeout(wakeTimer);
+
+    setStatus(convertStatus, "Converting... longer documents can take a minute.", "");
+    await waitForJob(jobId);
+
+    setStatus(convertStatus, "Preparing your download...", "");
+    const outName = safeFilename(target === "epub" ? epubTitle.value : baseName);
+    await downloadJob(jobId, `${outName}.${target}`);
+
+    setStatus(convertStatus, "Done! Your file has been downloaded.", "success");
+  } catch (err) {
+    setStatus(convertStatus, err.message || "Something went wrong. Please try again.", "error");
+  } finally {
+    clearTimeout(wakeTimer);
+    convertBusy = false;
+    convertBtn.innerHTML = convertBtnHTML;
+    updateConvertButton();
+  }
 });
