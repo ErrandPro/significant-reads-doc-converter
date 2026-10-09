@@ -24,6 +24,9 @@ const FORMATS_BY_EXT = {
   ".png": ["pdf"],
 };
 
+const FILE_ICON =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6"/><path d="M9 17h6"/></svg>';
+
 // ---------- Helpers ----------
 function formatBytes(bytes) {
   if (bytes < 1024) return bytes + " B";
@@ -34,6 +37,10 @@ function formatBytes(bytes) {
 function getExt(filename) {
   const i = filename.lastIndexOf(".");
   return i === -1 ? "" : filename.slice(i).toLowerCase();
+}
+
+function baseName(filename) {
+  return filename.replace(/\.[^.]+$/, "");
 }
 
 function setStatus(el, message, type) {
@@ -94,6 +101,45 @@ function setupDropzone({ zone, input, onFiles }) {
     input.value = ""; // allows picking the same file again
     if (files.length) onFiles(files);
   });
+}
+
+// Shows a chosen file (name, size, remove button) inside a dropzone
+function createFileView(zone) {
+  const empty = zone.querySelector(".dropzone-empty");
+  const view = document.createElement("div");
+  view.className = "dropzone-file";
+  view.hidden = true;
+  zone.appendChild(view);
+
+  return {
+    show(file, onRemove) {
+      view.innerHTML = `
+        <div class="dropzone-file-info">
+          ${FILE_ICON}
+          <div>
+            <p class="dropzone-file-name"></p>
+            <p class="dropzone-file-size"></p>
+          </div>
+        </div>
+        <button type="button" class="dropzone-remove" aria-label="Remove file">&times;</button>
+      `;
+      view.querySelector(".dropzone-file-name").textContent = file.name;
+      view.querySelector(".dropzone-file-size").textContent = formatBytes(file.size);
+      view.querySelector(".dropzone-remove").addEventListener("click", (e) => {
+        e.stopPropagation();
+        onRemove();
+      });
+      empty.hidden = true;
+      view.hidden = false;
+      zone.classList.add("has-file");
+    },
+    clear() {
+      empty.hidden = false;
+      view.hidden = true;
+      view.innerHTML = "";
+      zone.classList.remove("has-file");
+    },
+  };
 }
 
 // Stop the browser from opening a file dropped outside a dropzone
@@ -173,8 +219,9 @@ async function waitForJob(jobId) {
   throw new Error("This is taking too long. Please try again.");
 }
 
-// 3) Download the result (the backend deletes it after one download)
-async function downloadJob(jobId, filename) {
+// 3) Fetch the result. The backend deletes it after one download,
+//    so call this once per job and keep the blob.
+async function fetchJobBlob(jobId) {
   let res;
   try {
     res = await fetch(`${API_BASE}/download/${jobId}`);
@@ -182,7 +229,11 @@ async function downloadJob(jobId, filename) {
     throw new Error("Could not download the result. Please try again.");
   }
   if (!res.ok) throw new Error(await readError(res));
-  const blob = await res.blob();
+  return res.blob();
+}
+
+// Saves a blob to the user's computer
+function saveBlob(blob, filename) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -193,10 +244,31 @@ async function downloadJob(jobId, filename) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-// ---------- Convert tab ----------
+// Upload + wait, with friendly status messages. Returns the job id.
+async function processJob(endpoint, formData, statusEl) {
+  // The free server sleeps when idle, so the first request can be slow
+  const wakeTimer = setTimeout(() => {
+    setStatus(statusEl, "Waking up the server, this can take up to a minute...", "");
+  }, 8000);
+
+  try {
+    setStatus(statusEl, "Uploading...", "");
+    const jobId = await startJob(endpoint, formData);
+    clearTimeout(wakeTimer);
+
+    setStatus(statusEl, "Processing... longer documents can take a minute.", "");
+    await waitForJob(jobId);
+    return jobId;
+  } finally {
+    clearTimeout(wakeTimer);
+  }
+}
+
+// =====================================================================
+// CONVERT TAB
+// =====================================================================
 const convertDrop = document.getElementById("convert-drop");
 const convertInput = document.getElementById("convert-input");
-const convertEmpty = convertDrop.querySelector(".dropzone-empty");
 const convertFormatWrap = document.getElementById("convert-format-wrap");
 const convertFormat = document.getElementById("convert-format");
 const convertStatus = document.getElementById("convert-status");
@@ -216,12 +288,7 @@ const epubInputs = [
 ];
 
 const convertBtnHTML = convertBtn.innerHTML;
-
-// View shown inside the dropzone once a file is chosen
-const convertFileView = document.createElement("div");
-convertFileView.className = "dropzone-file";
-convertFileView.hidden = true;
-convertDrop.appendChild(convertFileView);
+const convertView = createFileView(convertDrop);
 
 let convertFile = null;
 let convertBusy = false;
@@ -232,36 +299,6 @@ function updateConvertButton() {
 
   const epubReady = !isEpub || (epubTitle.value.trim() && epubAuthor.value.trim());
   convertBtn.disabled = convertBusy || !(convertFile && convertFormat.value && epubReady);
-}
-
-function renderConvertFile() {
-  if (!convertFile) {
-    convertEmpty.hidden = false;
-    convertFileView.hidden = true;
-    convertDrop.classList.remove("has-file");
-    return;
-  }
-
-  convertFileView.innerHTML = `
-    <div class="dropzone-file-info">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6"/><path d="M9 17h6"/></svg>
-      <div>
-        <p class="dropzone-file-name"></p>
-        <p class="dropzone-file-size"></p>
-      </div>
-    </div>
-    <button type="button" class="dropzone-remove" aria-label="Remove file">&times;</button>
-  `;
-  convertFileView.querySelector(".dropzone-file-name").textContent = convertFile.name;
-  convertFileView.querySelector(".dropzone-file-size").textContent = formatBytes(convertFile.size);
-  convertFileView.querySelector(".dropzone-remove").addEventListener("click", (e) => {
-    e.stopPropagation();
-    if (!convertBusy) resetConvert();
-  });
-
-  convertEmpty.hidden = true;
-  convertFileView.hidden = false;
-  convertDrop.classList.add("has-file");
 }
 
 function populateFormats(ext) {
@@ -279,12 +316,13 @@ function populateFormats(ext) {
 }
 
 function resetConvert() {
+  if (convertBusy) return;
   convertFile = null;
   convertFormat.innerHTML = '<option value="">Choose the result</option>';
   convertFormatWrap.hidden = true;
   epubInputs.forEach((el) => (el.value = ""));
   setStatus(convertStatus, "");
-  renderConvertFile();
+  convertView.clear();
   updateConvertButton();
 }
 
@@ -309,7 +347,7 @@ function handleConvertFiles(files) {
 
   convertFile = file;
   setStatus(convertStatus, "");
-  renderConvertFile();
+  convertView.show(file, resetConvert);
   populateFormats(ext);
   updateConvertButton();
 }
@@ -319,19 +357,17 @@ setupDropzone({ zone: convertDrop, input: convertInput, onFiles: handleConvertFi
 // Choosing a result: pre-fill the EPUB title from the file name, then refresh the button
 convertFormat.addEventListener("change", () => {
   if (convertFormat.value === "epub" && convertFile && !epubTitle.value.trim()) {
-    epubTitle.value = convertFile.name.replace(/\.[^.]+$/, "").replace(/_+/g, " ");
+    epubTitle.value = baseName(convertFile.name).replace(/_+/g, " ");
   }
   updateConvertButton();
 });
 
 [epubTitle, epubAuthor].forEach((el) => el.addEventListener("input", updateConvertButton));
 
-// Submit: upload, wait for the job, download
 convertBtn.addEventListener("click", async () => {
   if (convertBusy || !convertFile) return;
 
   const target = convertFormat.value;
-  const baseName = convertFile.name.replace(/\.[^.]+$/, "");
 
   const fd = new FormData();
   fd.append("pdf", convertFile); // the backend field is named "pdf" for every file type
@@ -351,30 +387,335 @@ convertBtn.addEventListener("click", async () => {
   convertBtn.textContent = "Converting...";
   updateConvertButton();
 
-  // The free server sleeps when idle, so the first request can be slow
-  const wakeTimer = setTimeout(() => {
-    setStatus(convertStatus, "Waking up the server, this can take up to a minute...", "");
-  }, 8000);
-
   try {
-    setStatus(convertStatus, "Uploading your file...", "");
-    const jobId = await startJob("/convert", fd);
-    clearTimeout(wakeTimer);
-
-    setStatus(convertStatus, "Converting... longer documents can take a minute.", "");
-    await waitForJob(jobId);
+    const jobId = await processJob("/convert", fd, convertStatus);
 
     setStatus(convertStatus, "Preparing your download...", "");
-    const outName = safeFilename(target === "epub" ? epubTitle.value : baseName);
-    await downloadJob(jobId, `${outName}.${target}`);
+    const blob = await fetchJobBlob(jobId);
+    const outName = safeFilename(target === "epub" ? epubTitle.value : baseName(convertFile.name));
+    saveBlob(blob, `${outName}.${target}`);
 
     setStatus(convertStatus, "Done! Your file has been downloaded.", "success");
   } catch (err) {
     setStatus(convertStatus, err.message || "Something went wrong. Please try again.", "error");
   } finally {
-    clearTimeout(wakeTimer);
     convertBusy = false;
     convertBtn.innerHTML = convertBtnHTML;
     updateConvertButton();
+  }
+});
+
+// =====================================================================
+// SPLIT TAB
+// =====================================================================
+const splitDrop = document.getElementById("split-drop");
+const splitInput = document.getElementById("split-input");
+const splitStatus = document.getElementById("split-status");
+const splitBtn = document.getElementById("split-btn");
+const splitResult = document.getElementById("split-result");
+const splitZipBtn = document.getElementById("split-zip-btn");
+const splitFilesBtn = document.getElementById("split-files-btn");
+
+const splitView = createFileView(splitDrop);
+
+let splitFile = null;
+let splitBusy = false;
+let splitZipBlob = null; // kept in memory: the backend only allows one download
+
+function updateSplitButton() {
+  splitBtn.disabled = splitBusy || !splitFile;
+}
+
+function clearSplitResult() {
+  splitZipBlob = null;
+  splitResult.hidden = true;
+}
+
+function resetSplit() {
+  if (splitBusy) return;
+  splitFile = null;
+  clearSplitResult();
+  setStatus(splitStatus, "");
+  splitView.clear();
+  updateSplitButton();
+}
+
+function handleSplitFiles(files) {
+  if (splitBusy) return;
+
+  const file = files[0];
+
+  if (getExt(file.name) !== ".pdf") {
+    setStatus(splitStatus, "Please choose a PDF file.", "error");
+    return;
+  }
+  if (file.size === 0) {
+    setStatus(splitStatus, "That file is empty.", "error");
+    return;
+  }
+  if (file.size > MAX_FILE_BYTES) {
+    setStatus(splitStatus, `That file is ${formatBytes(file.size)}. The limit is 15 MB.`, "error");
+    return;
+  }
+
+  splitFile = file;
+  clearSplitResult();
+  setStatus(splitStatus, "");
+  splitView.show(file, resetSplit);
+  updateSplitButton();
+}
+
+setupDropzone({ zone: splitDrop, input: splitInput, onFiles: handleSplitFiles });
+
+splitBtn.addEventListener("click", async () => {
+  if (splitBusy || !splitFile) return;
+
+  const fd = new FormData();
+  fd.append("pdf", splitFile);
+
+  splitBusy = true;
+  clearSplitResult();
+  const originalLabel = splitBtn.textContent;
+  splitBtn.textContent = "Splitting...";
+  updateSplitButton();
+
+  try {
+    const jobId = await processJob("/split", fd, splitStatus);
+
+    setStatus(splitStatus, "Preparing your pages...", "");
+    splitZipBlob = await fetchJobBlob(jobId);
+
+    // Count the pages if the ZIP library is available
+    let message = "Done! Choose how you'd like your pages.";
+    if (window.JSZip) {
+      try {
+        const zip = await JSZip.loadAsync(splitZipBlob);
+        const count = Object.values(zip.files).filter((f) => !f.dir).length;
+        message = `Done! Your PDF was split into ${count} page${count === 1 ? "" : "s"}. Choose how you'd like them.`;
+      } catch (_) {}
+    }
+    setStatus(splitStatus, message, "success");
+    splitResult.hidden = false;
+  } catch (err) {
+    setStatus(splitStatus, err.message || "Something went wrong. Please try again.", "error");
+  } finally {
+    splitBusy = false;
+    splitBtn.textContent = originalLabel;
+    updateSplitButton();
+  }
+});
+
+splitZipBtn.addEventListener("click", () => {
+  if (!splitZipBlob || !splitFile) return;
+  saveBlob(splitZipBlob, `${safeFilename(baseName(splitFile.name))}_pages.zip`);
+});
+
+splitFilesBtn.addEventListener("click", async () => {
+  if (!splitZipBlob) return;
+  if (!window.JSZip) {
+    setStatus(splitStatus, "The ZIP tool could not load. Please download the ZIP instead.", "error");
+    return;
+  }
+
+  splitFilesBtn.disabled = true;
+  try {
+    const zip = await JSZip.loadAsync(splitZipBlob);
+    const entries = Object.values(zip.files)
+      .filter((f) => !f.dir)
+      .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+
+    for (let i = 0; i < entries.length; i++) {
+      setStatus(splitStatus, `Downloading file ${i + 1} of ${entries.length}...`, "");
+      const raw = await entries[i].async("blob");
+      const pdf = new Blob([raw], { type: "application/pdf" });
+      saveBlob(pdf, entries[i].name.split("/").pop());
+      await sleep(400); // browsers can block downloads fired too quickly
+    }
+
+    setStatus(
+      splitStatus,
+      `Downloaded ${entries.length} file${entries.length === 1 ? "" : "s"}. If some are missing, allow multiple downloads for this site in your browser.`,
+      "success"
+    );
+  } catch (_) {
+    setStatus(splitStatus, "Could not unpack the pages. Please download the ZIP instead.", "error");
+  } finally {
+    splitFilesBtn.disabled = false;
+  }
+});
+
+// =====================================================================
+// MERGE TAB
+// =====================================================================
+const mergeDrop = document.getElementById("merge-drop");
+const mergeInput = document.getElementById("merge-input");
+const mergeList = document.getElementById("merge-list");
+const mergeTotal = document.getElementById("merge-total");
+const mergeStatus = document.getElementById("merge-status");
+const mergeBtn = document.getElementById("merge-btn");
+
+let mergeFiles = [];
+let mergeBusy = false;
+let mergeDragIndex = null;
+
+function mergeTotalBytes() {
+  return mergeFiles.reduce((sum, f) => sum + f.size, 0);
+}
+
+function updateMergeButton() {
+  mergeBtn.disabled = mergeBusy || mergeFiles.length < 2;
+}
+
+function moveMergeItem(from, to) {
+  if (to < 0 || to >= mergeFiles.length || from === to) return;
+  const [item] = mergeFiles.splice(from, 1);
+  mergeFiles.splice(to, 0, item);
+  renderMergeList();
+}
+
+function renderMergeList() {
+  mergeList.innerHTML = "";
+
+  if (!mergeFiles.length) {
+    mergeList.hidden = true;
+    mergeTotal.hidden = true;
+    updateMergeButton();
+    return;
+  }
+
+  mergeFiles.forEach((file, i) => {
+    const li = document.createElement("li");
+    li.className = "file-item";
+    li.draggable = !mergeBusy;
+    li.dataset.index = String(i);
+    li.innerHTML = `
+      <span class="file-item-grip" aria-hidden="true">&#8942;&#8942;</span>
+      <span class="file-item-index">${i + 1}</span>
+      <div class="file-item-main">
+        <p class="file-item-name"></p>
+        <p class="file-item-size"></p>
+      </div>
+      <div class="file-item-actions">
+        <button type="button" class="icon-btn" data-action="up" aria-label="Move up" ${i === 0 || mergeBusy ? "disabled" : ""}>&uarr;</button>
+        <button type="button" class="icon-btn" data-action="down" aria-label="Move down" ${i === mergeFiles.length - 1 || mergeBusy ? "disabled" : ""}>&darr;</button>
+        <button type="button" class="icon-btn" data-action="remove" aria-label="Remove file" ${mergeBusy ? "disabled" : ""}>&times;</button>
+      </div>
+    `;
+    li.querySelector(".file-item-name").textContent = file.name;
+    li.querySelector(".file-item-name").title = file.name;
+    li.querySelector(".file-item-size").textContent = formatBytes(file.size);
+    mergeList.appendChild(li);
+  });
+
+  mergeList.hidden = false;
+  mergeTotal.hidden = false;
+  mergeTotal.textContent = `${mergeFiles.length} file${mergeFiles.length === 1 ? "" : "s"} · ${formatBytes(mergeTotalBytes())} of 15 MB`;
+  updateMergeButton();
+}
+
+function handleMergeFiles(files) {
+  if (mergeBusy) return;
+
+  let error = "";
+  let total = mergeTotalBytes();
+
+  for (const file of files) {
+    if (getExt(file.name) !== ".pdf") {
+      error = `"${file.name}" is not a PDF and was skipped.`;
+      continue;
+    }
+    if (file.size === 0) {
+      error = `"${file.name}" is empty and was skipped.`;
+      continue;
+    }
+    if (total + file.size > MAX_FILE_BYTES) {
+      error = `Adding "${file.name}" would go over the 15 MB combined limit.`;
+      continue;
+    }
+    mergeFiles.push(file);
+    total += file.size;
+  }
+
+  setStatus(mergeStatus, error, error ? "error" : "");
+  renderMergeList();
+}
+
+setupDropzone({ zone: mergeDrop, input: mergeInput, onFiles: handleMergeFiles });
+
+// Buttons inside the list (move up, move down, remove)
+mergeList.addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-action]");
+  if (!btn || mergeBusy) return;
+  const li = btn.closest(".file-item");
+  const index = Number(li.dataset.index);
+  const action = btn.dataset.action;
+
+  if (action === "up") moveMergeItem(index, index - 1);
+  if (action === "down") moveMergeItem(index, index + 1);
+  if (action === "remove") {
+    mergeFiles.splice(index, 1);
+    setStatus(mergeStatus, "");
+    renderMergeList();
+  }
+});
+
+// Drag to reorder
+mergeList.addEventListener("dragstart", (e) => {
+  const li = e.target.closest(".file-item");
+  if (!li || mergeBusy) return;
+  mergeDragIndex = Number(li.dataset.index);
+  li.classList.add("is-dragging");
+  e.dataTransfer.effectAllowed = "move";
+  e.dataTransfer.setData("text/plain", String(mergeDragIndex)); // required by Firefox
+});
+
+mergeList.addEventListener("dragover", (e) => {
+  if (mergeDragIndex === null) return;
+  e.preventDefault();
+  const li = e.target.closest(".file-item");
+  mergeList.querySelectorAll(".is-over").forEach((el) => el.classList.remove("is-over"));
+  if (li) li.classList.add("is-over");
+});
+
+mergeList.addEventListener("drop", (e) => {
+  if (mergeDragIndex === null) return;
+  e.preventDefault();
+  const li = e.target.closest(".file-item");
+  if (li) moveMergeItem(mergeDragIndex, Number(li.dataset.index));
+  mergeDragIndex = null;
+});
+
+mergeList.addEventListener("dragend", () => {
+  mergeDragIndex = null;
+  mergeList.querySelectorAll(".is-dragging, .is-over").forEach((el) => {
+    el.classList.remove("is-dragging", "is-over");
+  });
+});
+
+mergeBtn.addEventListener("click", async () => {
+  if (mergeBusy || mergeFiles.length < 2) return;
+
+  const fd = new FormData();
+  mergeFiles.forEach((file) => fd.append("files", file)); // order here is the merge order
+
+  mergeBusy = true;
+  const originalLabel = mergeBtn.textContent;
+  mergeBtn.textContent = "Merging...";
+  renderMergeList(); // disables the list controls while busy
+
+  try {
+    const jobId = await processJob("/merge", fd, mergeStatus);
+
+    setStatus(mergeStatus, "Preparing your download...", "");
+    const blob = await fetchJobBlob(jobId);
+    saveBlob(blob, "merged.pdf");
+
+    setStatus(mergeStatus, "Done! Your merged PDF has been downloaded.", "success");
+  } catch (err) {
+    setStatus(mergeStatus, err.message || "Something went wrong. Please try again.", "error");
+  } finally {
+    mergeBusy = false;
+    mergeBtn.textContent = originalLabel;
+    renderMergeList();
   }
 });
