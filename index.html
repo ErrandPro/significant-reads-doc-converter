@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Significant Reads Doc Converter - Word to EPUB & PDF Converter | Significant Reads</title>
   <meta name="description" content="Convert Word documents to EPUB or PDF, PDFs to Word or JPG, images to PDF, and split or merge PDFs. Free, from Significant Reads." />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📖</text></svg>" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -120,6 +121,11 @@
 
       <p class="status" id="split-status" role="status" aria-live="polite" hidden></p>
 
+      <div class="result" id="split-result" hidden>
+        <button type="button" class="btn-secondary" id="split-zip-btn">Download ZIP</button>
+        <button type="button" class="btn-secondary" id="split-files-btn">Download separate files</button>
+      </div>
+
       <button class="btn-primary" id="split-btn" disabled>Split PDF</button>
     </section>
 
@@ -140,6 +146,7 @@
       </div>
 
       <ul class="file-list" id="merge-list" hidden></ul>
+      <p class="file-total" id="merge-total" hidden></p>
 
       <p class="status" id="merge-status" role="status" aria-live="polite" hidden></p>
 
@@ -147,6 +154,7 @@
     </section>
   </main>
 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>
