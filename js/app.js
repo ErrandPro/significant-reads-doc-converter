@@ -166,7 +166,10 @@ function showTab(name) {
 }
 
 tabs.forEach((tab) => {
-  tab.addEventListener("click", () => showTab(tab.dataset.tab));
+  tab.addEventListener("click", () => {
+    showTab(tab.dataset.tab);
+    track("tab_view", { tool: tab.dataset.tab });
+  });
 });
 
 // ---------- Backend connection ----------
@@ -244,8 +247,56 @@ function saveBlob(blob, filename) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+// ---------- Analytics (Google Analytics) ----------
+// Sends only coarse facts: tool, file type, size, duration, outcome.
+// Never file names, titles, form entries, or error text. Does nothing if GA is blocked.
+function track(event, params) {
+  try {
+    if (typeof window.gtag === "function") window.gtag("event", event, params || {});
+  } catch (_) {}
+}
+
+function errorKind(err) {
+  const msg = String((err && err.message) || "");
+  if (msg.includes("reach the server") || msg.includes("Could not download")) return "network";
+  if (msg.includes("Too many requests")) return "rate_limit";
+  if (msg.includes("taking too long")) return "timeout";
+  if (/error 5\d\d/.test(msg)) return "server";
+  return "failed";
+}
+
+function secondsSince(startedAt) {
+  return Math.round((performance.now() - startedAt) / 100) / 10;
+}
+
+// Works out the tool, file types and size from what is being uploaded
+function jobMeta(endpoint, formData) {
+  const tool = endpoint.replace("/", "");
+  let fromType = "pdf";
+  let sizeKb = 0;
+
+  if (tool === "merge") {
+    sizeKb = formData.getAll("files").reduce((sum, f) => sum + f.size, 0) / 1024;
+  } else {
+    const file = formData.get("pdf");
+    if (file && file.name) {
+      fromType = getExt(file.name).slice(1);
+      sizeKb = file.size / 1024;
+    }
+  }
+
+  let toType = "pdf";
+  if (tool === "convert") toType = String(formData.get("target") || "");
+  if (tool === "split") toType = "zip";
+
+  return { tool, from_type: fromType, to_type: toType, size_kb: Math.round(sizeKb) };
+}
+
 // Upload + wait, with friendly status messages. Returns the job id.
 async function processJob(endpoint, formData, statusEl) {
+  const startedAt = performance.now();
+  const meta = jobMeta(endpoint, formData);
+
   // The free server sleeps when idle, so the first request can be slow
   const wakeTimer = setTimeout(() => {
     setStatus(statusEl, "Waking up the server, this can take up to a minute...", "");
@@ -258,7 +309,12 @@ async function processJob(endpoint, formData, statusEl) {
 
     setStatus(statusEl, "Processing... longer documents can take a minute.", "");
     await waitForJob(jobId);
+
+    track("job_done", { ...meta, duration_s: secondsSince(startedAt) });
     return jobId;
+  } catch (err) {
+    track("job_failed", { ...meta, error_type: errorKind(err), duration_s: secondsSince(startedAt) });
+    throw err;
   } finally {
     clearTimeout(wakeTimer);
   }
@@ -507,6 +563,7 @@ splitBtn.addEventListener("click", async () => {
 
 splitZipBtn.addEventListener("click", () => {
   if (!splitZipBlob || !splitFile) return;
+  track("split_download", { split_choice: "zip" });
   saveBlob(splitZipBlob, `${safeFilename(baseName(splitFile.name))}_pages.zip`);
 });
 
@@ -518,6 +575,7 @@ splitFilesBtn.addEventListener("click", async () => {
   }
 
   splitFilesBtn.disabled = true;
+  track("split_download", { split_choice: "files" });
   try {
     const zip = await JSZip.loadAsync(splitZipBlob);
     const entries = Object.values(zip.files)
