@@ -5,7 +5,7 @@ const API_BASE = "https://significant-reads-epub-api.onrender.com";
 const POLL_INTERVAL_MS = 2000;
 const POLL_TIMEOUT_MS = 5 * 60 * 1000;
 
-const CONVERT_EXTENSIONS = [".pdf", ".doc", ".docx", ".jpg", ".jpeg", ".png"];
+const CONVERT_EXTENSIONS = [".pdf", ".doc", ".docx", ".epub", ".jpg", ".jpeg", ".png"];
 
 const FORMAT_LABELS = {
   docx: "Word document (.docx)",
@@ -19,6 +19,7 @@ const FORMATS_BY_EXT = {
   ".pdf": ["docx", "jpg"],
   ".doc": ["epub", "pdf"],
   ".docx": ["epub", "pdf"],
+  ".epub": ["docx", "pdf"],
   ".jpg": ["pdf"],
   ".jpeg": ["pdf"],
   ".png": ["pdf"],
@@ -389,7 +390,7 @@ function handleConvertFiles(files) {
   const ext = getExt(file.name);
 
   if (!CONVERT_EXTENSIONS.includes(ext)) {
-    setStatus(convertStatus, "Unsupported file type. Please choose a PDF, DOC, DOCX, JPG or PNG file.", "error");
+    setStatus(convertStatus, "Unsupported file type. Please choose a PDF, DOC, DOCX, EPUB, JPG or PNG file.", "error");
     return;
   }
   if (file.size === 0) {
