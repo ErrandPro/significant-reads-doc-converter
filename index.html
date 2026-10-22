@@ -43,16 +43,17 @@
     <section class="card" id="panel-convert" role="tabpanel" aria-labelledby="tab-convert">
       <h2>Convert your document</h2>
       <p class="card-desc">
-        Choose a file to start. A Word document (.doc or .docx) can become an EPUB or a PDF, a PDF
-        becomes a Word document or a JPG, and an image (.jpg or .png) becomes a PDF.
+        Choose a file to start. A Word document (.doc or .docx) can become an EPUB or a PDF, an EPUB
+        can become a Word document or a PDF, a PDF becomes a Word document or a JPG, and an image
+        (.jpg or .png) becomes a PDF.
       </p>
 
       <label class="field-label" for="convert-input">Your file</label>
       <div class="dropzone" id="convert-drop" tabindex="0">
-        <input type="file" id="convert-input" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" hidden />
+        <input type="file" id="convert-input" accept=".pdf,.doc,.docx,.epub,.jpg,.jpeg,.png" hidden />
         <div class="dropzone-empty">
           <svg class="icon-upload" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
-          <p class="dropzone-title">Drop your PDF, DOC, DOCX, JPG or PNG here or click to browse</p>
+          <p class="dropzone-title">Drop your PDF, DOC, DOCX, EPUB, JPG or PNG here or click to browse</p>
           <p class="dropzone-hint">Up to 15 MB</p>
         </div>
       </div>
