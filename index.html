@@ -20,6 +20,70 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="css/styles.css" />
+
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.webmanifest" />
+  <meta name="theme-color" content="#0b1020" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="Doc Converter" />
+
+  <!-- Install banner styles -->
+  <style>
+    .install-banner {
+      position: fixed;
+      left: 12px;
+      right: 12px;
+      bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+      max-width: 460px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 14px;
+      background: #0b1020;
+      color: #fff;
+      border-radius: 14px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+      z-index: 1000;
+      font-family: inherit;
+    }
+    .install-banner[hidden] { display: none; }
+    .install-banner img { border-radius: 10px; flex: none; }
+    .install-text {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      font-size: 13px;
+      line-height: 1.35;
+    }
+    .install-text strong { font-size: 14px; }
+    .install-text span { color: #cbd5e1; }
+    .install-btn {
+      flex: none;
+      background: #fff;
+      color: #0b1020;
+      border: 0;
+      border-radius: 10px;
+      padding: 9px 14px;
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .install-btn[hidden] { display: none; }
+    .install-close {
+      flex: none;
+      background: transparent;
+      border: 0;
+      color: #cbd5e1;
+      font-size: 22px;
+      line-height: 1;
+      cursor: pointer;
+      padding: 4px 6px;
+    }
+  </style>
 </head>
 <body>
   <main class="page">
@@ -173,8 +237,105 @@
     </nav>
     <p>&copy; 2026 Significant Reads</p>
   </footer>
-  
+
+  <!-- Install banner (shown to first-time visitors) -->
+  <div class="install-banner" id="install-banner" role="dialog" aria-label="Install Doc Converter" hidden>
+    <img src="icons/icon-192.png" alt="" width="40" height="40" />
+    <div class="install-text">
+      <strong>Install Doc Converter</strong>
+      <span id="install-sub">Open it like an app, straight from your home screen.</span>
+    </div>
+    <button type="button" class="install-btn" id="install-btn">Install</button>
+    <button type="button" class="install-close" id="install-close" aria-label="Dismiss">&times;</button>
+  </div>
+
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script src="js/app.js"></script>
+
+  <!-- Service worker registration -->
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", function () {
+        navigator.serviceWorker.register("sw.js").catch(function () {});
+      });
+    }
+  </script>
+
+  <!-- Install prompt -->
+  <script>
+    (function () {
+      var KEY = "installBannerDismissedAt";
+      var HIDE_DAYS = 30;
+
+      var banner = document.getElementById("install-banner");
+      var installBtn = document.getElementById("install-btn");
+      var closeBtn = document.getElementById("install-close");
+      var sub = document.getElementById("install-sub");
+      var deferredPrompt = null;
+
+      function isInstalled() {
+        return (
+          window.matchMedia("(display-mode: standalone)").matches ||
+          window.navigator.standalone === true
+        );
+      }
+
+      function dismissedRecently() {
+        try {
+          var t = Number(localStorage.getItem(KEY));
+          return t && Date.now() - t < HIDE_DAYS * 24 * 60 * 60 * 1000;
+        } catch (_) {
+          return false;
+        }
+      }
+
+      function hide(remember) {
+        banner.hidden = true;
+        if (remember) {
+          try { localStorage.setItem(KEY, String(Date.now())); } catch (_) {}
+        }
+      }
+
+      function show() {
+        banner.hidden = false;
+      }
+
+      function isIOS() {
+        return (
+          /iphone|ipad|ipod/i.test(navigator.userAgent) ||
+          (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)
+        );
+      }
+
+      if (isInstalled() || dismissedRecently()) return;
+
+      closeBtn.addEventListener("click", function () { hide(true); });
+
+      // Chrome, Edge, Android: real install prompt
+      window.addEventListener("beforeinstallprompt", function (e) {
+        e.preventDefault();
+        deferredPrompt = e;
+        setTimeout(show, 3000);
+      });
+
+      installBtn.addEventListener("click", function () {
+        if (!deferredPrompt) return;
+        deferredPrompt.prompt();
+        deferredPrompt.userChoice.then(function (choice) {
+          deferredPrompt = null;
+          hide(choice.outcome === "dismissed");
+        });
+      });
+
+      window.addEventListener("appinstalled", function () { hide(false); });
+
+      // iPhone and iPad: no install prompt exists, so show a short hint
+      if (isIOS()) {
+        installBtn.hidden = true;
+        sub.textContent = "Tap the Share button, then \u201CAdd to Home Screen\u201D.";
+        setTimeout(show, 3000);
+      }
+    })();
+  </script>
 </body>
 </html>
